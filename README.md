@@ -108,7 +108,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
   > **Code Quality Improvements**: 
   > - Added type declarations to all methods and parameters
   > - Marked classes as `final` to prevent inheritance
-  > - Added `#[\Override]` attributes to overridden methods
   > - Added PHPStan configuration for static analysis
   > - Added PHPUnit test suite with basic tests
   > - Updated `.gitignore` for better project hygiene
