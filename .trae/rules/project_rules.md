@@ -49,3 +49,5 @@
   - **marked.js**: Marked 库，用于 Markdown 解析
   - **script.js**: 扩展的前端脚本
   - **style.css**: 扩展的样式文件
+
+# 这个显示只有一个插件，就是 ArticleSummary 的代码, 没有freshrss 相关的代码, 也没有其他插件相关的代码, 如果想要相关的文档, 请 use context7, use Tavily search 来搜索相关内容
