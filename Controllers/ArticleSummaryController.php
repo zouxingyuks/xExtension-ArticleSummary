@@ -4,13 +4,20 @@
  * Article Summary Controller
  * 文章总结控制器
  */
-class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
+final class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
   /**
    * Handle the summarize action
    * 处理总结动作
    */
-  public function summarizeAction() {
+  public function summarizeAction(): void {
+    // Start output buffering to prevent output before header() call
+    // This is essential for JSON API responses because header() must be called before any output
+    // $this->view->_layout(false) may trigger some output, causing "headers already sent" error
+    // 开启输出缓冲区，防止在调用 header() 之前有输出
+    // 这对于 JSON API 响应是必要的，因为 header() 必须在任何输出之前调用
+    // $this->view->_layout(false) 可能会触发某些输出，导致 headers already sent 错误
     ob_start();
+    
     $this->view->_layout(false);
     header('Content-Type: application/json');
 
@@ -124,7 +131,7 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
    * @param mixed $item The value to check
    * @return bool True if the value is empty, false otherwise
    */
-  private function isEmpty($item) {
+  private function isEmpty(mixed $item): bool {
     return $item === null || trim($item) === '';
   }
 
@@ -135,7 +142,7 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
    * @param string $content HTML content to convert
    * @return string Markdown formatted content
    */
-  private function htmlToMarkdown($content) {
+  private function htmlToMarkdown(string $content): string {
     // Create DOMDocument object
     $dom = new DOMDocument();
     libxml_use_internal_errors(true); // Ignore HTML parsing errors
@@ -169,7 +176,7 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
    * @param int $indentLevel Indentation level for nested elements
    * @return string Markdown formatted content
    */
-  private function processNode($node, $xpath, $indentLevel = 0) {
+  private function processNode(DOMNode $node, DOMXPath $xpath, int $indentLevel = 0): string {
     $markdown = '';
 
     // Process text nodes

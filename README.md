@@ -44,9 +44,55 @@ Once configured, the extension will automatically add a "summarize" button to ea
 - **Axios**: Used for making HTTP requests from the browser.
 - **Marked**: Converts Markdown content to HTML for display.
 
+## Development
+
+### Running Tests
+
+This extension includes automated tests to ensure code quality. To run the tests:
+
+```bash
+# Install dependencies
+composer install
+
+# Run PHPUnit tests
+composer test
+
+# Run PHPStan static analysis
+composer phpstan
+
+# Run both tests and static analysis
+composer ci
+```
+
+### Code Quality
+
+The extension follows modern PHP standards and includes:
+- **Type declarations**: All methods have proper type hints
+- **Final classes**: Classes are marked as `final` to prevent inheritance
+- **Override attributes**: Methods that override parent methods use `#[\Override]` attribute
+- **Static analysis**: PHPStan configuration for detecting potential issues
+- **Automated tests**: PHPUnit test suite for core functionality
+
+### Modern PHP Features
+
+The extension has been upgraded to use modern FreshRSS API:
+- Uses string-based hooks (`'entry_before_display'`) for backward compatibility with older FreshRSS versions
+- Proper type declarations for all methods and parameters
+- Uses `ob_start()` for JSON API responses to prevent "headers already sent" errors
+- Follows FreshRSS extension development best practices
+
+**Important Note on `ob_start()`**: 
+The `ob_start()` call in `summarizeAction()` is **not obsolete** but **essential** for JSON API responses. It prevents the "Cannot modify header information - headers already sent" error by buffering output before headers are set. This is a standard practice for controllers that return JSON responses in FreshRSS extensions.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
+
+When contributing, please ensure:
+1. All tests pass: `composer test`
+2. Static analysis passes: `composer phpstan`
+3. Code follows existing style and conventions
+4. New features include appropriate tests
 
 ## License
 
@@ -58,6 +104,18 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Inspired by the need for efficient article summarization tools.
 
 ## History
+- Version: 0.5.0 (2026-01-08)
+  > **Code Quality Improvements**: 
+  > - Added type declarations to all methods and parameters
+  > - Marked classes as `final` to prevent inheritance
+  > - Added `#[\Override]` attributes to overridden methods
+  > - Added PHPStan configuration for static analysis
+  > - Added PHPUnit test suite with basic tests
+  > - Updated `.gitignore` for better project hygiene
+  > - Improved code documentation and comments
+  > - **Fixed**: Reverted to string-based hooks for backward compatibility with older FreshRSS versions
+  > - **Fixed**: Restored `ob_start()` in `summarizeAction()` - it's essential for JSON API responses to prevent "headers already sent" errors
+
 - Version: 0.4.0 (2026-01-08)
   > **Features Added**: 
   > - Added streaming response support for OpenAI API, consistent with Ollama API

@@ -3,7 +3,7 @@
  * ArticleSummaryExtension - FreshRSS extension for AI article summarization
  * ArticleSummaryExtension - 用于AI文章总结的FreshRSS插件
  */
-class ArticleSummaryExtension extends Minz_Extension
+final class ArticleSummaryExtension extends Minz_Extension
 {
   /**
    * Content Security Policy settings
@@ -17,11 +17,13 @@ class ArticleSummaryExtension extends Minz_Extension
    * Initialize the extension
    * 初始化插件
    */
-  public function init()
+  #[\Override]
+  public function init(): void
   {
     // Register hook to add summary button to each article
     // 注册钩子，为每篇文章添加总结按钮
-    $this->registerHook('entry_before_display', array($this, 'addSummaryButton'));
+    // 使用字符串方式以兼容旧版本 FreshRSS
+    $this->registerHook('entry_before_display', [$this, 'addSummaryButton']);
     
     // Register controller for handling summarization requests
     // 注册控制器以处理总结请求
@@ -53,7 +55,7 @@ class ArticleSummaryExtension extends Minz_Extension
    * @param FreshRSS_Entry $entry The article entry
    * @return FreshRSS_Entry Modified article entry with summary button
    */
-  public function addSummaryButton($entry)
+  public function addSummaryButton(FreshRSS_Entry $entry): FreshRSS_Entry
   {
     // Check if current request is for RSS feed
     // 检查当前请求是否为RSS feed
@@ -100,7 +102,7 @@ class ArticleSummaryExtension extends Minz_Extension
    * Handle configuration action
    * 处理配置动作
    */
-  public function handleConfigureAction()
+  public function handleConfigureAction(): void
   {
     if (Minz_Request::isPost()) {
       // Save user configuration from form inputs

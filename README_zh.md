@@ -44,9 +44,55 @@
 - **Axios**：用于从浏览器发出 HTTP 请求。
 - **Marked**：将 Markdown 内容转换为 HTML 以便显示。
 
+## 开发
+
+### 运行测试
+
+此插件包含自动化测试以确保代码质量。要运行测试：
+
+```bash
+# 安装依赖
+composer install
+
+# 运行 PHPUnit 测试
+composer test
+
+# 运行 PHPStan 静态分析
+composer phpstan
+
+# 同时运行测试和静态分析
+composer ci
+```
+
+### 代码质量
+
+该插件遵循现代 PHP 标准并包括：
+- **类型声明**：所有方法都有适当的类型提示
+- **Final 类**：类被标记为 `final` 以防止继承
+- **Override 属性**：覆盖父类方法的方法使用 `#[\Override]` 属性
+- **静态分析**：PHPStan 配置用于检测潜在问题
+- **自动化测试**：PHPUnit 测试套件用于核心功能
+
+### 现代 PHP 特性
+
+该插件已升级以使用现代 FreshRSS API：
+- 使用基于字符串的钩子（`'entry_before_display'`）以确保与旧版本 FreshRSS 的向后兼容性
+- 所有方法和参数都有适当的类型声明
+- 使用 `ob_start()` 处理 JSON API 响应，防止"headers already sent"错误
+- 遵循 FreshRSS 扩展开发最佳实践
+
+**关于 `ob_start()` 的重要说明**：
+`summarizeAction()` 中的 `ob_start()` 调用**不是过时的**，而是对于 JSON API 响应**必不可少的**。它通过在设置标头之前缓冲输出来防止"Cannot modify header information - headers already sent"错误。这是 FreshRSS 扩展中返回 JSON 响应的控制器标准做法。
+
 ## 贡献
 
 欢迎贡献！请随时提交问题或拉取请求。
+
+在贡献时，请确保：
+1. 所有测试通过：`composer test`
+2. 静态分析通过：`composer phpstan`
+3. 代码遵循现有的风格和约定
+4. 新功能包含适当的测试
 
 ## 许可证
 
@@ -58,6 +104,18 @@
 - 灵感来自于对高效文章总结工具的需求。
 
 ## 历史
+- 版本: 0.5.0 (2026-01-08)
+  > **代码质量改进**: 
+  > - 为所有方法和参数添加了类型声明
+  > - 将类标记为 `final` 以防止继承
+  > - 为覆盖的方法添加了 `#[\Override]` 属性
+  > - 添加了 PHPStan 配置用于静态分析
+  > - 添加了包含基本测试的 PHPUnit 测试套件
+  > - 更新了 `.gitignore` 以改善项目卫生
+  > - 改进了代码文档和注释
+  > - **修复**：恢复为基于字符串的钩子以确保与旧版本 FreshRSS 的兼容性
+  > - **修复**：在 `summarizeAction()` 中恢复 `ob_start()` - 对于 JSON API 响应是必不可少的，用于防止"headers already sent"错误
+
 - 版本: 0.4.0 (2026-01-08)
   > **新增功能**: 
   > - 为OpenAI API添加了流式响应支持，与Ollama API保持一致
