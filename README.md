@@ -15,6 +15,7 @@ This extension for FreshRSS allows users to generate summaries of articles using
 - **Enhanced Error Handling**: Provides detailed error messages in case of API errors or incomplete configurations.
 - **Content Security Policy**: Configured to allow API requests to external endpoints.
 - **Internationalization (i18n)**: Supports English, Simplified Chinese (zh-CN), and Traditional Chinese (zh-TW) languages.
+- **Default Prompt and Placeholder**: Provides language-specific default prompts and input placeholders if no custom prompt is set.
 
 ## Installation
 
@@ -63,6 +64,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
   > - Added English, Simplified Chinese (zh-CN), and Traditional Chinese (zh-TW) translations
   > - Updated language code structure to follow international standards
   > - All interface elements now support dynamic language switching
+  > - Added default prompt and placeholder functionality for language-specific default prompts
 
 - Version: 0.2.0 (2025-01-08)
   > **Features Added**: 
