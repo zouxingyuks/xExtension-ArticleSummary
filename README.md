@@ -69,7 +69,6 @@ composer ci
 The extension follows modern PHP standards and includes:
 - **Type declarations**: All methods have proper type hints
 - **Final classes**: Classes are marked as `final` to prevent inheritance
-- **Override attributes**: Methods that override parent methods use `#[\Override]` attribute
 - **Static analysis**: PHPStan configuration for detecting potential issues
 - **Automated tests**: PHPUnit test suite for core functionality
 
