@@ -1,16 +1,19 @@
 # FreshRSS Article Summary Extension
 
 - [中文 README](README_zh.md)
-- [English README](README.md)
 
 This extension for FreshRSS allows users to generate summaries of articles using a language model API that conforms to the OpenAI API specification. The extension provides a user-friendly interface to configure the API endpoint, API key, model name, and a prompt to be added before the content. When activated, it adds a "summarize" button to each article, which, when clicked, sends the article content to the configured API for summarization.
 
 ## Features
 
+- **Multiple API Providers**: Supports both OpenAI and Ollama API providers for maximum flexibility.
 - **API Configuration**: Easily configure the base URL, API key, model name, and prompt through a simple form.
 - **Summarize Button**: Adds a "summarize" button to each article, allowing users to generate a summary with a single click.
 - **Markdown Support**: Converts HTML content to Markdown before sending it to the API, ensuring compatibility with various language models.
-- **Error Handling**: Provides feedback in case of API errors or incomplete configurations.
+- **Streaming Response**: Processes and displays summarization results in real-time as they are received from the API.
+- **Automatic API Version Handling**: Automatically adds the appropriate API version path (e.g., `/v1`) to the base URL if missing.
+- **Enhanced Error Handling**: Provides detailed error messages in case of API errors or incomplete configurations.
+- **Content Security Policy**: Configured to allow API requests to external endpoints.
 
 ## Installation
 
@@ -53,6 +56,15 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Inspired by the need for efficient article summarization tools.
 
 ## History
+- Version: 0.2.0 (2025-01-08)
+  > **Features Added**: 
+  > - Added support for Ollama API provider
+  > - Implemented streaming response processing for real-time summary display
+  > - Enhanced error handling with detailed error messages
+  > - Added automatic API version handling
+  > - Improved content conversion from HTML to Markdown
+  > - Updated content security policy configuration
+
 - Version: 0.1.1 (2024-11-20)
   > **Bug Fix**: Prevented the summary button from affecting the title list display. Previously, the 'entry_before_display' hook was causing the summary button to be added to the title list, leading to display issues. Now, the button initially has no text and adds text only when the article is clicked to be displayed.
 
