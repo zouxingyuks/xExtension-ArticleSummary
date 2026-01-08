@@ -1,19 +1,29 @@
 <?php
 
-class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
-{
-  public function summarizeAction()
-  {
+/**
+ * Article Summary Controller
+ * 文章总结控制器
+ */
+class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
+  /**
+   * Handle the summarize action
+   * 处理总结动作
+   */
+  public function summarizeAction() {
     $this->view->_layout(false);
     // Set response header to JSON
     header('Content-Type: application/json');
 
+    // Get configuration values from user settings
+    // 从用户设置中获取配置值
     $oai_url = FreshRSS_Context::$user_conf->oai_url;
     $oai_key = FreshRSS_Context::$user_conf->oai_key;
     $oai_model = FreshRSS_Context::$user_conf->oai_model;
     $oai_prompt = FreshRSS_Context::$user_conf->oai_prompt;
     $oai_provider = FreshRSS_Context::$user_conf->oai_provider;
 
+    // Check if all required configurations are provided
+    // 检查是否提供了所有必要的配置
     if (
       $this->isEmpty($oai_url)
       || $this->isEmpty($oai_key)
@@ -30,6 +40,8 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
       return;
     }
 
+    // Get article ID from request and fetch the article
+    // 从请求中获取文章ID并获取文章
     $entry_id = Minz_Request::param('id');
     $entry_dao = FreshRSS_Factory::createEntryDao();
     $entry = $entry_dao->searchById($entry_id);
@@ -39,18 +51,20 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
       return;
     }
 
-    $content = $entry->content(); // Replace with article content
+    $content = $entry->content(); // Get article content
 
-    // Process $oai_url
+    // Process API URL - add version if missing (only for OpenAI)
+    // 处理API URL - 如果缺少版本则添加（仅针对OpenAI）
     $oai_url = rtrim($oai_url, '/'); // Remove trailing slash
-    if (!preg_match('/\/v\d+\/?$/', $oai_url)) {
-        $oai_url .= '/v1'; // If there is no version information, add /v1
+    if ($oai_provider !== "ollama" && !preg_match('/\/v\d+\/?$/', $oai_url)) {
+        $oai_url .= '/v1'; // If there is no version information and it's not Ollama, add /v1
     }
-    // Open AI Input
+    
+    // Prepare OpenAI API response
+    // 准备OpenAI API响应
     $successResponse = array(
       'response' => array(
         'data' => array(
-          // Determine whether the URL ends with a version. If it does, no version information is added. If not, /v1 is added by default.
           "oai_url" => $oai_url . '/chat/completions',
           "oai_key" => $oai_key,
           "model" => $oai_model,
@@ -74,7 +88,8 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
       'status' => 200
     );
 
-    // Ollama API Input
+    // Prepare Ollama API response if selected
+    // 如果选择了Ollama API，则准备Ollama API响应
     if ($oai_provider === "ollama") {
       $successResponse = array(
         'response' => array(
@@ -92,17 +107,32 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
         'status' => 200
       );
     }
+    
+    // Send response
+    // 发送响应
     echo json_encode($successResponse);
     return;
   }
 
-  private function isEmpty($item)
-  {
+  /**
+   * Check if a value is empty
+   * 检查值是否为空
+   * 
+   * @param mixed $item The value to check
+   * @return bool True if the value is empty, false otherwise
+   */
+  private function isEmpty($item) {
     return $item === null || trim($item) === '';
   }
 
-  private function htmlToMarkdown($content)
-  {
+  /**
+   * Convert HTML content to Markdown format
+   * 将HTML内容转换为Markdown格式
+   * 
+   * @param string $content HTML content to convert
+   * @return string Markdown formatted content
+   */
+  private function htmlToMarkdown($content) {
     // Create DOMDocument object
     $dom = new DOMDocument();
     libxml_use_internal_errors(true); // Ignore HTML parsing errors
@@ -112,125 +142,13 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
     // Create XPath object
     $xpath = new DOMXPath($dom);
 
-    // Define an anonymous function to process the node
-    $processNode = function ($node, $indentLevel = 0) use (&$processNode, $xpath) {
-      $markdown = '';
-
-      // Process text nodes
-      if ($node->nodeType === XML_TEXT_NODE) {
-        $markdown .= trim($node->nodeValue);
-      }
-
-      // Process element nodes
-      if ($node->nodeType === XML_ELEMENT_NODE) {
-        switch ($node->nodeName) {
-          case 'p':
-          case 'div':
-            foreach ($node->childNodes as $child) {
-              $markdown .= $processNode($child);
-            }
-            $markdown .= "\n\n";
-            break;
-          case 'h1':
-            $markdown .= "# ";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "\n\n";
-            break;
-          case 'h2':
-            $markdown .= "## ";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "\n\n";
-            break;
-          case 'h3':
-            $markdown .= "### ";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "\n\n";
-            break;
-          case 'h4':
-            $markdown .= "#### ";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "\n\n";
-            break;
-          case 'h5':
-            $markdown .= "##### ";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "\n\n";
-            break;
-          case 'h6':
-            $markdown .= "###### ";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "\n\n";
-            break;
-          case 'a':
-            // $markdown .= "[";
-            // $markdown .= $processNode($node->firstChild);
-            // $markdown .= "](" . $node->getAttribute('href') . ")";
-            $markdown .= "`";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "`";
-            break;
-          case 'img':
-            $alt = $node->getAttribute('alt');
-            $markdown .= "img: `" . $alt . "`";
-            break;
-          case 'strong':
-          case 'b':
-            $markdown .= "**";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "**";
-            break;
-          case 'em':
-          case 'i':
-            $markdown .= "*";
-            $markdown .= $processNode($node->firstChild);
-            $markdown .= "*";
-            break;
-          case 'ul':
-          case 'ol':
-            $markdown .= "\n";
-            foreach ($node->childNodes as $child) {
-              if ($child->nodeName === 'li') {
-                $markdown .= str_repeat("  ", $indentLevel) . "- ";
-                $markdown .= $processNode($child, $indentLevel + 1);
-                $markdown .= "\n";
-              }
-            }
-            $markdown .= "\n";
-            break;
-          case 'li':
-            $markdown .= str_repeat("  ", $indentLevel) . "- ";
-            foreach ($node->childNodes as $child) {
-              $markdown .= $processNode($child, $indentLevel + 1);
-            }
-            $markdown .= "\n";
-            break;
-          case 'br':
-            $markdown .= "\n";
-            break;
-          case 'audio':
-          case 'video':
-            $alt = $node->getAttribute('alt');
-            $markdown .= "[" . ($alt ? $alt : 'Media') . "]";
-            break;
-          default:
-            // Tags not considered, only the text inside is kept
-            foreach ($node->childNodes as $child) {
-              $markdown .= $processNode($child);
-            }
-            break;
-        }
-      }
-
-      return $markdown;
-    };
-
     // Get all nodes
     $nodes = $xpath->query('//body/*');
 
     // Process all nodes
     $markdown = '';
     foreach ($nodes as $node) {
-      $markdown .= $processNode($node);
+      $markdown .= $this->processNode($node, $xpath);
     }
 
     // Remove extra line breaks
@@ -239,4 +157,123 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController
     return $markdown;
   }
 
+  /**
+   * Process a single DOM node and convert it to Markdown
+   * 处理单个DOM节点并将其转换为Markdown
+   * 
+   * @param DOMNode $node The DOM node to process
+   * @param DOMXPath $xpath XPath object for querying nodes
+   * @param int $indentLevel Indentation level for nested elements
+   * @return string Markdown formatted content
+   */
+  private function processNode($node, $xpath, $indentLevel = 0) {
+    $markdown = '';
+
+    // Process text nodes
+    if ($node->nodeType === XML_TEXT_NODE) {
+      $markdown .= trim($node->nodeValue);
+    }
+
+    // Process element nodes
+    if ($node->nodeType === XML_ELEMENT_NODE) {
+      switch ($node->nodeName) {
+        case 'p':
+        case 'div':
+          foreach ($node->childNodes as $child) {
+            $markdown .= $this->processNode($child, $xpath, $indentLevel);
+          }
+          $markdown .= "\n\n";
+          break;
+        case 'h1':
+          $markdown .= "# ";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "\n\n";
+          break;
+        case 'h2':
+          $markdown .= "## ";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "\n\n";
+          break;
+        case 'h3':
+          $markdown .= "### ";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "\n\n";
+          break;
+        case 'h4':
+          $markdown .= "#### ";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "\n\n";
+          break;
+        case 'h5':
+          $markdown .= "##### ";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "\n\n";
+          break;
+        case 'h6':
+          $markdown .= "###### ";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "\n\n";
+          break;
+        case 'a':
+          // Convert links to code-style text instead of markdown links
+          // 将链接转换为代码风格的文本而不是markdown链接
+          $markdown .= "`";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "`";
+          break;
+        case 'img':
+          $alt = $node->getAttribute('alt');
+          $markdown .= "img: `" . $alt . "`";
+          break;
+        case 'strong':
+        case 'b':
+          $markdown .= "**";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "**";
+          break;
+        case 'em':
+        case 'i':
+          $markdown .= "*";
+          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= "*";
+          break;
+        case 'ul':
+        case 'ol':
+          $markdown .= "\n";
+          foreach ($node->childNodes as $child) {
+            if ($child->nodeName === 'li') {
+              $markdown .= str_repeat("  ", $indentLevel) . "- ";
+              $markdown .= $this->processNode($child, $xpath, $indentLevel + 1);
+              $markdown .= "\n";
+            }
+          }
+          $markdown .= "\n";
+          break;
+        case 'li':
+          $markdown .= str_repeat("  ", $indentLevel) . "- ";
+          foreach ($node->childNodes as $child) {
+            $markdown .= $this->processNode($child, $xpath, $indentLevel + 1);
+          }
+          $markdown .= "\n";
+          break;
+        case 'br':
+          $markdown .= "\n";
+          break;
+        case 'audio':
+        case 'video':
+          $alt = $node->getAttribute('alt');
+          $markdown .= "[" . ($alt ? $alt : 'Media') . "]";
+          break;
+        default:
+          // Tags not considered, only the text inside is kept
+          // 不处理的标签，只保留内部文本
+          foreach ($node->childNodes as $child) {
+            $markdown .= $this->processNode($child, $xpath, $indentLevel);
+          }
+          break;
+      }
+    }
+
+    return $markdown;
+  }
 }
