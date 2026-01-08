@@ -175,7 +175,8 @@ async function sendOpenAIRequest(container, oaiParams) {
     // 准备请求体，移除URL和密钥
     let body = JSON.parse(JSON.stringify(oaiParams));
     delete body['oai_url'];
-    delete body['oai_key'];	  
+    delete body['oai_key'];
+    body["stream"] = true; // Ensure stream is true for OpenAI API
     
     // Send POST request to OpenAI API
     // 向OpenAI API发送POST请求
@@ -192,10 +193,12 @@ async function sendOpenAIRequest(container, oaiParams) {
       throw new Error('Request Failed');
     }
 
-    // Process streaming response
-    // 处理流式响应
+    // Process streaming response with buffer
+    // 使用缓冲区处理流式响应
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
+    let text = '';
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -205,19 +208,49 @@ async function sendOpenAIRequest(container, oaiParams) {
         setOaiState(container, 0, 'finish', null);
         break;
       }
-
-      // Decode and parse the response chunk
-      // 解码并解析响应块
-      const chunk = decoder.decode(value, { stream: true });
-      let text = '';
-      try {
-        text = JSON.parse(chunk)?.choices[0]?.message?.content || '';
-        // Update the summary content
-        // 更新总结内容
-        setOaiState(container, 0, null, marked.parse(text));
-      } catch (parseError) {
-        // Ignore parsing errors for incomplete chunks
-        // 忽略不完整块的解析错误
+      
+      // Append new data to buffer
+      // 将新数据添加到缓冲区
+      buffer += decoder.decode(value, { stream: true });
+      
+      // Process each line in buffer
+      // 处理缓冲区中的每一行
+      let endIndex;
+      while ((endIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, endIndex).trim();
+        buffer = buffer.slice(endIndex + 1);
+        
+        // Skip empty lines
+        // 跳过空行
+        if (!line) continue;
+        
+        // Check for done signal
+        // 检查是否完成
+        if (line === 'data: [DONE]') {
+          break;
+        }
+        
+        // Extract JSON data from line (remove "data: " prefix)
+        // 从行中提取JSON数据（移除"data: "前缀）
+        if (line.startsWith('data: ')) {
+          const jsonString = line.slice(6).trim();
+          try {
+            const json = JSON.parse(jsonString);
+            if (json.choices && json.choices[0].delta) {
+              const delta = json.choices[0].delta;
+              if (delta.content) {
+                text += delta.content;
+                // Update the summary content
+                // 更新总结内容
+                setOaiState(container, 0, null, marked.parse(text));
+              }
+            }
+          } catch (e) {
+            // If JSON parsing fails, output the error
+            // 如果JSON解析失败，输出错误
+            console.error('Error parsing OpenAI response:', e, 'Line:', jsonString);
+          }
+        }
       }
     }
   } catch (error) {

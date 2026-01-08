@@ -80,7 +80,8 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
           ],
           "max_tokens" => 2048, // You can adjust the length of the summary as needed
           "temperature" => 0.7, // You can adjust the randomness/temperature of the generated text as needed
-          "n" => 1 // Generate summary
+          "n" => 1, // Generate summary
+          "stream" => true
         ),
         'provider' => 'openai',
         'error' => null

@@ -58,6 +58,10 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Inspired by the need for efficient article summarization tools.
 
 ## History
+- Version: 0.4.0 (2026-01-08)
+  > **Features Added**: 
+  > - Added streaming response support for OpenAI API, consistent with Ollama API
+
 - Version: 0.3.0 (2026-01-08)
   > **Features Added**: 
   > - Implemented internationalization (i18n) support
