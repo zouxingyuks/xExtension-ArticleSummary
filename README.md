@@ -14,6 +14,7 @@ This extension for FreshRSS allows users to generate summaries of articles using
 - **Automatic API Version Handling**: Automatically adds the appropriate API version path (e.g., `/v1`) to the base URL if missing.
 - **Enhanced Error Handling**: Provides detailed error messages in case of API errors or incomplete configurations.
 - **Content Security Policy**: Configured to allow API requests to external endpoints.
+- **Internationalization (i18n)**: Supports English, Simplified Chinese (zh-CN), and Traditional Chinese (zh-TW) languages.
 
 ## Installation
 
@@ -56,6 +57,13 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Inspired by the need for efficient article summarization tools.
 
 ## History
+- Version: 0.3.0 (2026-01-08)
+  > **Features Added**: 
+  > - Implemented internationalization (i18n) support
+  > - Added English, Simplified Chinese (zh-CN), and Traditional Chinese (zh-TW) translations
+  > - Updated language code structure to follow international standards
+  > - All interface elements now support dynamic language switching
+
 - Version: 0.2.0 (2025-01-08)
   > **Features Added**: 
   > - Added support for Ollama API provider
