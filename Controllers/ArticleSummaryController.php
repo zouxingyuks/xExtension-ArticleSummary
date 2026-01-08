@@ -10,8 +10,8 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
    * 处理总结动作
    */
   public function summarizeAction() {
+    ob_start();
     $this->view->_layout(false);
-    // Set response header to JSON
     header('Content-Type: application/json');
 
     // Get configuration values from user settings
