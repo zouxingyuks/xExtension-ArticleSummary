@@ -31,6 +31,13 @@ class ArticleSummaryExtension extends Minz_Extension
     // 注册翻译文件
     $this->registerTranslates(__DIR__ . '/i18n');
     
+    // Set default prompt if not already set
+    // 如果没有设置默认提示词，则设置默认值
+    if (empty(FreshRSS_Context::$user_conf->oai_prompt)) {
+      FreshRSS_Context::$user_conf->oai_prompt = _t('ArticleSummary.config.default_prompt');
+      FreshRSS_Context::$user_conf->save();
+    }
+    
     // Append static resources
     // 附加静态资源
     Minz_View::appendStyle($this->getFileUrl('style.css', 'css'));

@@ -22,7 +22,7 @@ $oai_provider = FreshRSS_Context::$user_conf->oai_provider ?: 'openai'; // Defau
     <label for="oai_model"><?php echo _t('ArticleSummary.config.model_name'); ?></label>
     <input type="text" name="oai_model" id="oai_model" value="<?php echo $oai_model; ?>">
     <label for="oai_prompt"><?php echo _t('ArticleSummary.config.prompt'); ?></label>
-    <textarea name="oai_prompt" id="oai_prompt"><?php echo $oai_prompt; ?></textarea>
+    <textarea name="oai_prompt" id="oai_prompt" placeholder="<?php echo _t('ArticleSummary.config.default_prompt'); ?>"><?php echo $oai_prompt; ?></textarea>
   </div>
   <hr />
   <button type="submit"><?php echo _t('ArticleSummary.config.save'); ?></button>

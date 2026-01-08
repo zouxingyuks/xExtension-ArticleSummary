@@ -6,6 +6,7 @@ return array(
         'api_key' => 'API Key',
         'model_name' => 'Model Name',
         'prompt' => 'Prompt (add before content)',
+        'default_prompt' => 'Please summarize the following article in English. Keep it concise but informative, highlighting the key points and main ideas.',
         'save' => 'Save',
         'openai' => 'OpenAI',
         'ollama' => 'Ollama'
