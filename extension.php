@@ -55,6 +55,12 @@ class ArticleSummaryExtension extends Minz_Extension
    */
   public function addSummaryButton($entry)
   {
+    // Check if current request is for RSS feed
+    // 检查当前请求是否为RSS feed
+    if (Minz_Request::param('a') === 'rss') {
+      return $entry; // Return original entry without modifying it for RSS
+    }
+    
     // Generate URL for summarization request
     // 生成总结请求的URL
     $url_summary = Minz_Url::display(array(
