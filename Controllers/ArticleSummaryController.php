@@ -51,6 +51,8 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
       return;
     }
 
+    $title = $entry->title(); // Get article title
+    $author = $entry->author(); // Get article author
     $content = $entry->content(); // Get article content
 
     // Process API URL - add version if missing (only for OpenAI)
@@ -75,7 +77,7 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
             ],
             [
               "role" => "user",
-              "content" => "input: \n" . $this->htmlToMarkdown($content),
+              "content" => "Title: " . $title . "\nAuthor: " . $author . "\n\nContent: " . $this->htmlToMarkdown($content),
             ]
           ],
           "max_tokens" => 2048, // You can adjust the length of the summary as needed
@@ -99,7 +101,7 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
             "oai_key" => $oai_key,
             "model" => $oai_model,
             "system" => $oai_prompt,
-            "prompt" =>  $this->htmlToMarkdown($content),
+            "prompt" =>  "Title: " . $title . "\nAuthor: " . $author . "\n\nContent: " . $this->htmlToMarkdown($content),
             "stream" => true,
           ),
           'provider' => 'ollama',
