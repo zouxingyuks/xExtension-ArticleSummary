@@ -22,7 +22,8 @@ function configureSummarizeButtons() {
       // Handle article header click to add text to summary button
       // 处理文章标题点击，为总结按钮添加文本
       if (target.matches('.flux_header')) {
-        target.nextElementSibling.querySelector('.oai-summary-btn').innerHTML = 'Summarize'
+        const button = target.nextElementSibling.querySelector('.oai-summary-btn');
+        button.innerHTML = button.dataset.summarizeText;
       }
 
       // Handle summarize button click
@@ -102,7 +103,8 @@ async function summarizeButtonClick(target) {
 
   // Set loading state
   // 设置加载状态
-  setOaiState(container, 1, 'Loading...', null);
+  const loadingText = container.querySelector('.oai-summary-btn').dataset.loadingText;
+  setOaiState(container, 1, loadingText, null);
 
   // Get the request URL and prepare data
   // 获取请求URL并准备数据
@@ -127,7 +129,8 @@ async function summarizeButtonClick(target) {
     // Check if response is valid
     // 检查响应是否有效
     if (response.status !== 200 || !xresp.response || !xresp.response.data) {
-      throw new Error('Request Failed');
+      const requestFailedText = container.querySelector('.oai-summary-btn').dataset.requestFailedText;
+      throw new Error(requestFailedText);
     }
 
     // Handle error response

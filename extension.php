@@ -27,6 +27,10 @@ class ArticleSummaryExtension extends Minz_Extension
     // 注册控制器以处理总结请求
     $this->registerController('ArticleSummary');
     
+    // Register translations
+    // 注册翻译文件
+    $this->registerTranslates(__DIR__ . '/i18n');
+    
     // Append static resources
     // 附加静态资源
     Minz_View::appendStyle($this->getFileUrl('style.css', 'css'));
@@ -54,11 +58,23 @@ class ArticleSummaryExtension extends Minz_Extension
       )
     ));
 
-    // Add summary button and container to article content
-    // 向文章内容添加总结按钮和容器
+    // Get translated texts
+    // 获取翻译文本
+    $summarizeText = _t('ArticleSummary.button.summarize');
+    $loadingText = _t('ArticleSummary.status.loading');
+    $errorText = _t('ArticleSummary.status.error');
+    $requestFailedText = _t('ArticleSummary.status.request_failed');
+
+    // Add summary button and container to article content with translated texts as data attributes
+    // 向文章内容添加总结按钮和容器，并将翻译文本作为data属性
     $entry->_content(
       '<div class="oai-summary-wrap">'
-      . '<button data-request="' . $url_summary . '" class="oai-summary-btn"></button>'
+      . '<button data-request="' . $url_summary . '" '
+      . 'data-summarize-text="' . $summarizeText . '" '
+      . 'data-loading-text="' . $loadingText . '" '
+      . 'data-error-text="' . $errorText . '" '
+      . 'data-request-failed-text="' . $requestFailedText . '" '
+      . 'class="oai-summary-btn"></button>'
       . '<div class="oai-summary-content"></div>'
       . '</div>'
       . $entry->content()
