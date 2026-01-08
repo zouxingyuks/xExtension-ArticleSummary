@@ -243,12 +243,19 @@ async function sendOllamaRequest(container, oaiParams){
   try {
     // Send POST request to Ollama API
     // 向Ollama API发送POST请求
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // Only add Authorization header if API key exists
+    // 只有当API key存在时才添加Authorization头
+    if (oaiParams.oai_key && oaiParams.oai_key.trim() !== '') {
+      headers['Authorization'] = `Bearer ${oaiParams.oai_key}`;
+    }
+    
     const response = await fetch(oaiParams.oai_url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${oaiParams.oai_key}`
-      },
+      headers: headers,
       body: JSON.stringify(oaiParams)
     });
 

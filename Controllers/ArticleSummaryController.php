@@ -26,7 +26,7 @@ class FreshExtension_ArticleSummary_Controller extends Minz_ActionController {
     // 检查是否提供了所有必要的配置
     if (
       $this->isEmpty($oai_url)
-      || $this->isEmpty($oai_key)
+      || ($this->isEmpty($oai_key) && $oai_provider !== 'ollama')
       || $this->isEmpty($oai_model)
       || $this->isEmpty($oai_prompt)
     ) {
