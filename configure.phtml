@@ -5,7 +5,6 @@ $oai_model = FreshRSS_Context::$user_conf->oai_model;
 $oai_prompt = FreshRSS_Context::$user_conf->oai_prompt;
 $oai_provider = FreshRSS_Context::$user_conf->oai_provider ?: 'openai'; // Default to OpenAI
 ?>
-
 <form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
   <input type="hidden" name="_csrf" value="<?php echo FreshRSS_Auth::csrfToken(); ?>" />
   <label for="oai_provider"><?php echo _t('ArticleSummary.config.ai_provider'); ?></label>

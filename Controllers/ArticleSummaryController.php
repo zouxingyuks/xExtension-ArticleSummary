@@ -129,10 +129,10 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
    * 检查值是否为空
    * 
    * @param mixed $item The value to check
-   * @return bool True if the value is empty, false otherwise
+   * @return bool True if the value is null, false otherwise
    */
   private function isEmpty(mixed $item): bool {
-    return $item === null || trim($item) === '';
+    return $item === null;
   }
 
   /**

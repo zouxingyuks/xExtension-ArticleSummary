@@ -33,9 +33,9 @@ final class ArticleSummaryExtension extends Minz_Extension
     // 注册翻译文件
     $this->registerTranslates(__DIR__ . '/i18n');
     
-    // Set default prompt if not already set
-    // 如果没有设置默认提示词，则设置默认值
-    if (empty(FreshRSS_Context::$user_conf->oai_prompt)) {
+    // Only set default prompt if not already set (null)
+    // 仅当提示词尚未设置时（null）才设置默认值
+    if (is_null(FreshRSS_Context::$user_conf->oai_prompt)) {
       FreshRSS_Context::$user_conf->oai_prompt = _t('ArticleSummary.config.default_prompt');
       FreshRSS_Context::$user_conf->save();
     }
@@ -102,16 +102,32 @@ final class ArticleSummaryExtension extends Minz_Extension
    * Handle configuration action
    * 处理配置动作
    */
-  public function handleConfigureAction(): void
-  {
+  public function handleConfigureAction(): void {
     if (Minz_Request::isPost()) {
-      // Save user configuration from form inputs
-      // 从表单输入保存用户配置
-      FreshRSS_Context::$user_conf->oai_url = Minz_Request::param('oai_url', '');
-      FreshRSS_Context::$user_conf->oai_key = Minz_Request::param('oai_key', '');
-      FreshRSS_Context::$user_conf->oai_model = Minz_Request::param('oai_model', '');
-      FreshRSS_Context::$user_conf->oai_prompt = Minz_Request::param('oai_prompt', '');
-      FreshRSS_Context::$user_conf->oai_provider = Minz_Request::param('oai_provider', '');
+      // Get form inputs
+      // 获取表单输入
+      $oai_url = Minz_Request::param('oai_url', '');
+      $oai_key = Minz_Request::param('oai_key', '');
+      $oai_model = Minz_Request::param('oai_model', '');
+      $oai_prompt = Minz_Request::param('oai_prompt', '');
+      $oai_provider = Minz_Request::param('oai_provider', '');
+      
+      // If prompt is empty string, set to null so default can be applied
+      // 如果提示词为空字符串，则设置为null以便应用默认值
+      if (trim($oai_prompt) === '') {
+        $oai_prompt = null;
+      }
+      
+      // Set the configuration values
+      // 设置配置值
+      FreshRSS_Context::$user_conf->oai_url = $oai_url;
+      FreshRSS_Context::$user_conf->oai_key = $oai_key;
+      FreshRSS_Context::$user_conf->oai_model = $oai_model;
+      FreshRSS_Context::$user_conf->oai_prompt = $oai_prompt;
+      FreshRSS_Context::$user_conf->oai_provider = $oai_provider;
+      
+      // Save the configuration
+      // 保存配置
       FreshRSS_Context::$user_conf->save();
     }
   }

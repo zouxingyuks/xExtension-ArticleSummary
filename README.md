@@ -103,6 +103,17 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - Inspired by the need for efficient article summarization tools.
 
 ## History
+- Version: 0.5.2 (2026-01-13)
+  > **Bug Fix**: Fixed issue where default prompt was not being restored after deleting old prompt
+  > - Added logic to set prompt to null when empty string is submitted
+  > - Ensures default prompt is applied when user clears the prompt field
+
+- Version: 0.5.1 (2026-01-13)
+  > **Bug Fix**: Fixed issue where prompt settings were not being saved correctly
+  > - Changed default prompt logic from `empty()` to `is_null()` check
+  > - Ensures empty prompts can be saved and used correctly
+  > - Cleaned up debug code and optimized configuration handling
+
 - Version: 0.5.0 (2026-01-08)
   > **Code Quality Improvements**: 
   > - Added type declarations to all methods and parameters
