@@ -18,8 +18,20 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
     // $this->view->_layout(false) 可能会触发某些输出，导致 headers already sent 错误
     ob_start();
     
-    $this->view->_layout(false);
+    $this->view->_layout(null);
     header('Content-Type: application/json');
+
+    if (!FreshRSS_Auth::hasAccess()) {
+      header('HTTP/1.1 403 Forbidden');
+      echo json_encode(array('error' => 'forbidden'));
+      return;
+    }
+
+    if (!is_object(FreshRSS_Context::$user_conf)) {
+      header('HTTP/1.1 500 Internal Server Error');
+      echo json_encode(array('error' => 'missing_user_config'));
+      return;
+    }
 
     // Get configuration values from user settings
     // 从用户设置中获取配置值
@@ -39,7 +51,6 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
     ) {
       echo json_encode(array(
         'response' => array(
-          'data' => 'missing config',
           'error' => 'configuration'
         ),
         'status' => 200
@@ -49,8 +60,13 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
 
     // Get article ID from request and fetch the article
     // 从请求中获取文章ID并获取文章
-    $entry_id = Minz_Request::param('id');
+    $entry_id = Minz_Request::paramInt('id');
     $entry_dao = FreshRSS_Factory::createEntryDao();
+    if (!is_object($entry_dao) || !method_exists($entry_dao, 'searchById')) {
+      header('HTTP/1.1 500 Internal Server Error');
+      echo json_encode(array('error' => 'entry_dao_unavailable'));
+      return;
+    }
     $entry = $entry_dao->searchById($entry_id);
 
     if ($entry === null) {
@@ -58,70 +74,344 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
       return;
     }
 
-    $title = $entry->title(); // Get article title
-    $author = $entry->author(); // Get article author
-    $content = $entry->content(); // Get article content
-
     // Process API URL - add version if missing (only for OpenAI)
     // 处理API URL - 如果缺少版本则添加（仅针对OpenAI）
     $oai_url = rtrim($oai_url, '/'); // Remove trailing slash
     if ($oai_provider !== "ollama" && !preg_match('/\/v\d+\/?$/', $oai_url)) {
         $oai_url .= '/v1'; // If there is no version information and it's not Ollama, add /v1
     }
-    
-    // Prepare OpenAI API response
-    // 准备OpenAI API响应
-    $successResponse = array(
-      'response' => array(
-        'data' => array(
-          "oai_url" => $oai_url . '/chat/completions',
-          "oai_key" => $oai_key,
-          "model" => $oai_model,
-          "messages" => [
-            [
-              "role" => "system",
-              "content" => $oai_prompt
-            ],
-            [
-              "role" => "user",
-              "content" => "Title: " . $title . "\nAuthor: " . $author . "\n\nContent: " . $this->htmlToMarkdown($content),
-            ]
-          ],
-          "max_tokens" => 2048, // You can adjust the length of the summary as needed
-          "temperature" => 0.7, // You can adjust the randomness/temperature of the generated text as needed
-          "n" => 1, // Generate summary
-          "stream" => true
-        ),
-        'provider' => 'openai',
-        'error' => null
-      ),
-      'status' => 200
-    );
 
-    // Prepare Ollama API response if selected
-    // 如果选择了Ollama API，则准备Ollama API响应
-    if ($oai_provider === "ollama") {
-      $successResponse = array(
-        'response' => array(
-          'data' => array(
-            "oai_url" => rtrim($oai_url, '/') . '/api/generate',
-            "oai_key" => $oai_key,
-            "model" => $oai_model,
-            "system" => $oai_prompt,
-            "prompt" =>  "Title: " . $title . "\nAuthor: " . $author . "\n\nContent: " . $this->htmlToMarkdown($content),
-            "stream" => true,
-          ),
-          'provider' => 'ollama',
-          'error' => null
-        ),
-        'status' => 200
-      );
-    }
-    
+    $provider = $oai_provider === 'ollama' ? 'ollama' : 'openai';
+
     // Send response
     // 发送响应
-    echo json_encode($successResponse);
+    $proxy_url = trim(html_entity_decode(Minz_Url::display(array(
+      'c' => 'ArticleSummary',
+      'a' => 'proxy',
+      'params' => array(
+        'ajax' => 1,
+        'id' => $entry_id,
+      ),
+    ), 'php', 'root'), ENT_QUOTES));
+
+    $parsed_url = parse_url($proxy_url);
+    if (is_array($parsed_url)) {
+      $has_http_scheme = isset($parsed_url['scheme'])
+        && (strtolower((string) $parsed_url['scheme']) === 'http' || strtolower((string) $parsed_url['scheme']) === 'https');
+      $has_host = isset($parsed_url['host']) || strpos($proxy_url, '//') === 0;
+
+      if ($has_http_scheme || $has_host) {
+        $proxy_url = isset($parsed_url['path']) && $parsed_url['path'] !== '' ? $parsed_url['path'] : '/';
+        if (isset($parsed_url['query'])) {
+          $proxy_url .= '?' . $parsed_url['query'];
+        }
+        if (isset($parsed_url['fragment'])) {
+          $proxy_url .= '#' . $parsed_url['fragment'];
+        }
+      }
+    }
+
+    echo json_encode(array(
+      'response' => array(
+        'proxy_url' => $proxy_url,
+        'provider' => $provider,
+      ),
+      'status' => 200,
+    ));
     return;
+  }
+
+  public function proxyAction(): void {
+    ob_start();
+
+    $request_id = uniqid('as_', true);
+
+    register_shutdown_function(static function () use ($request_id): void {
+      $last_error = error_get_last();
+      if (!is_array($last_error)) {
+        return;
+      }
+
+      $fatal_types = array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR);
+      if (!in_array($last_error['type'], $fatal_types, true)) {
+        return;
+      }
+
+      error_log('[ArticleSummary][proxyAction][fatal][' . $request_id . '] '
+        . $last_error['message'] . ' in ' . $last_error['file'] . ':' . $last_error['line']);
+
+      if (!headers_sent()) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => 'internal_server_error',
+          'request_id' => $request_id,
+        ));
+      }
+    });
+
+    try {
+      $this->view->_layout(null);
+
+      header('X-ArticleSummary-Request-Id: ' . $request_id);
+
+      if (!FreshRSS_Auth::hasAccess()) {
+        header('HTTP/1.1 403 Forbidden');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'forbidden', 'request_id' => $request_id));
+        exit;
+      }
+
+      if (!Minz_Request::isPost()) {
+        header('HTTP/1.1 405 Method Not Allowed');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'method_not_allowed', 'request_id' => $request_id));
+        exit;
+      }
+
+      if (!is_object(FreshRSS_Context::$user_conf)) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'missing_user_config', 'request_id' => $request_id));
+        exit;
+      }
+
+      $entry_id = Minz_Request::paramInt('id');
+      if ($entry_id <= 0) {
+        header('HTTP/1.1 400 Bad Request');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'missing_article_id', 'request_id' => $request_id));
+        exit;
+      }
+
+      $oai_url = FreshRSS_Context::$user_conf->oai_url;
+      $oai_key = FreshRSS_Context::$user_conf->oai_key;
+      $oai_model = FreshRSS_Context::$user_conf->oai_model;
+      $oai_prompt = FreshRSS_Context::$user_conf->oai_prompt;
+      $oai_provider = FreshRSS_Context::$user_conf->oai_provider;
+
+      if (
+        $this->isEmpty($oai_url)
+        || ($this->isEmpty($oai_key) && $oai_provider !== 'ollama')
+        || $this->isEmpty($oai_model)
+        || $this->isEmpty($oai_prompt)
+      ) {
+        header('HTTP/1.1 400 Bad Request');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'configuration', 'request_id' => $request_id));
+        exit;
+      }
+
+      if ($oai_provider !== 'openai' && $oai_provider !== 'ollama') {
+        header('HTTP/1.1 400 Bad Request');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'invalid_provider', 'request_id' => $request_id));
+        exit;
+      }
+
+      $entry_dao = FreshRSS_Factory::createEntryDao();
+      if (!is_object($entry_dao) || !method_exists($entry_dao, 'searchById')) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'entry_dao_unavailable', 'request_id' => $request_id));
+        exit;
+      }
+
+      $entry = $entry_dao->searchById((int) $entry_id);
+      if ($this->isEmpty($entry)) {
+        header('HTTP/1.1 404 Not Found');
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'article_not_found', 'request_id' => $request_id));
+        exit;
+      }
+
+      $prompt_content = 'Title: ' . $entry->title() . "\nAuthor: " . $entry->author() . "\n\nContent: " . $this->htmlToMarkdown($entry->content());
+
+      $base_url = rtrim($oai_url, '/');
+      if ($oai_provider !== 'ollama' && !preg_match('/\/v\d+\/?$/', $base_url)) {
+        $base_url .= '/v1';
+      }
+
+      if ($oai_provider === 'ollama') {
+        $api_url = $base_url . '/api/generate';
+        $payload = array(
+          'model' => $oai_model,
+          'system' => $oai_prompt,
+          'prompt' => $prompt_content,
+          'stream' => true,
+        );
+        $headers = array('Content-Type: application/json');
+        if (!$this->isEmpty($oai_key)) {
+          $headers[] = 'Authorization: Bearer ' . $oai_key;
+        }
+        $success_content_type = 'application/x-ndjson; charset=UTF-8';
+      } else {
+        $api_url = $base_url . '/chat/completions';
+        $payload = array(
+          'model' => $oai_model,
+          'messages' => array(
+            array(
+              'role' => 'system',
+              'content' => $oai_prompt,
+            ),
+            array(
+              'role' => 'user',
+              'content' => $prompt_content,
+            ),
+          ),
+          'max_tokens' => 2048,
+          'temperature' => 0.7,
+          'n' => 1,
+          'stream' => true,
+        );
+        $headers = array(
+          'Content-Type: application/json',
+          'Authorization: Bearer ' . $oai_key,
+        );
+        $success_content_type = 'text/event-stream; charset=UTF-8';
+      }
+
+      if (!function_exists('curl_init')) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => 'runtime_missing_curl',
+          'message' => 'PHP cURL extension is required for proxy streaming.',
+          'request_id' => $request_id,
+        ));
+        exit;
+      }
+
+      $payload_json = json_encode($payload);
+      if ($payload_json === false) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => 'payload_encode_failed',
+          'request_id' => $request_id,
+        ));
+        exit;
+      }
+
+      while (ob_get_level() > 0) {
+        ob_end_clean();
+      }
+
+      $header_http_code = 0;
+      $upstream_error_body = '';
+      $stream_started = false;
+
+      $ch = curl_init($api_url);
+      if ($ch === false) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => 'curl_init_failed',
+          'request_id' => $request_id,
+        ));
+        exit;
+      }
+
+      curl_setopt_array($ch, array(
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload_json,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => false,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_HEADERFUNCTION => static function ($handle, string $header_line) use (&$header_http_code): int {
+          if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', trim($header_line), $matches) === 1) {
+            $header_http_code = (int) $matches[1];
+          }
+
+          return strlen($header_line);
+        },
+        CURLOPT_WRITEFUNCTION => static function ($handle, string $data) use (&$stream_started, &$header_http_code, &$upstream_error_body, $success_content_type): int {
+          if ($header_http_code >= 400) {
+            $upstream_error_body .= $data;
+            return strlen($data);
+          }
+
+          if (!$stream_started) {
+            header('Content-Type: ' . $success_content_type);
+            header('Cache-Control: no-cache');
+            header('X-Accel-Buffering: no');
+            $stream_started = true;
+          }
+
+          echo $data;
+          flush();
+          return strlen($data);
+        },
+      ));
+
+      $result = curl_exec($ch);
+      $curl_error = curl_error($ch);
+      $curl_errno = curl_errno($ch);
+      $http_code = $header_http_code;
+      if ($http_code === 0) {
+        $http_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+      }
+      curl_close($ch);
+
+      if ($result === false || $curl_errno !== 0) {
+        error_log('[ArticleSummary][proxyAction][upstream_error][' . $request_id . '] errno=' . $curl_errno . ' message=' . $curl_error . ' url=' . $api_url);
+
+        if ($stream_started) {
+          echo "\n";
+          flush();
+          exit;
+        }
+
+        $is_timeout = $curl_errno === 28 || (defined('CURLE_OPERATION_TIMEDOUT') && $curl_errno === CURLE_OPERATION_TIMEDOUT);
+        header($is_timeout ? 'HTTP/1.1 504 Gateway Timeout' : 'HTTP/1.1 502 Bad Gateway');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => $is_timeout ? 'upstream_timeout' : 'upstream_request_failed',
+          'message' => $curl_error,
+          'request_id' => $request_id,
+        ));
+        exit;
+      }
+
+      if ($http_code >= 400) {
+        error_log('[ArticleSummary][proxyAction][upstream_http][' . $request_id . '] status=' . $http_code . ' url=' . $api_url);
+
+        if ($stream_started) {
+          echo "\n";
+          flush();
+          exit;
+        }
+
+        header('HTTP/1.1 502 Bad Gateway');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => 'upstream_http_error',
+          'status' => $http_code,
+          'body' => substr(trim($upstream_error_body), 0, 1024),
+          'request_id' => $request_id,
+        ));
+        exit;
+      }
+
+      exit;
+    } catch (Throwable $throwable) {
+      error_log('[ArticleSummary][proxyAction][exception][' . $request_id . '] ' . get_class($throwable) . ': ' . $throwable->getMessage() . ' at ' . $throwable->getFile() . ':' . $throwable->getLine());
+
+      if (!headers_sent()) {
+        header('HTTP/1.1 500 Internal Server Error');
+        header('Content-Type: application/json');
+        echo json_encode(array(
+          'error' => 'internal_server_error',
+          'request_id' => $request_id,
+        ));
+      } else {
+        echo "\n";
+        flush();
+      }
+
+      exit;
+    }
   }
 
   /**
@@ -143,6 +433,10 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
    * @return string Markdown formatted content
    */
   private function htmlToMarkdown(string $content): string {
+    if (!class_exists('DOMDocument') || !class_exists('DOMXPath')) {
+      return strip_tags($content);
+    }
+
     // Create DOMDocument object
     $dom = new DOMDocument();
     libxml_use_internal_errors(true); // Ignore HTML parsing errors

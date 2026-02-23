@@ -17,7 +17,8 @@ if (document.readyState && document.readyState !== 'loading') {
  */
 function configureSummarizeButtons() {
   document.getElementById('global').addEventListener('click', function (e) {
-    for (var target = e.target; target && target != this; target = target.parentNode) {
+    let target = e.target;
+    while (target && target !== this) {
       
       // Handle article header click to add text to summary button
       // 处理文章标题点击，为总结按钮添加文本
@@ -36,6 +37,7 @@ function configureSummarizeButtons() {
         }
         break;
       }
+      target = target.parentNode;
     }
   }, false);
 }
@@ -86,6 +88,57 @@ function setOaiState(container, statusType, statusMsg, summaryText) {
   }
 }
 
+function extractErrorMessage(error) {
+  const responsePayload = error?.response?.data;
+  const requestId = responsePayload?.request_id;
+  const baseMessage = responsePayload?.error?.message ||
+                      responsePayload?.message ||
+                      responsePayload?.error ||
+                      error?.message ||
+                      'Request Failed';
+
+  if (requestId) {
+    return `${baseMessage} [${requestId}]`;
+  }
+
+  return baseMessage;
+}
+
+function buildFetchError(response, fallbackStatusText = 'Request Failed') {
+  const requestId = response.headers.get('x-articlesummary-request-id');
+  const base = `${fallbackStatusText} (${response.status})`;
+  return requestId ? `${base} [${requestId}]` : base;
+}
+
+function normalizeSameOriginUrl(rawUrl, missingMessage, invalidMessage, blockedMessage) {
+  const decoded = String(rawUrl || '').replaceAll('&amp;', '&').trim();
+  if (!decoded) {
+    throw new Error(missingMessage);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(decoded, window.location.origin);
+  } catch {
+    throw new Error(invalidMessage);
+  }
+
+  if (parsed.origin !== window.location.origin) {
+    throw new Error(blockedMessage);
+  }
+
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
+function normalizeProxyUrl(rawProxyUrl) {
+  return normalizeSameOriginUrl(
+    rawProxyUrl,
+    'Missing proxy URL',
+    'Invalid proxy URL',
+    'Blocked cross-origin proxy URL'
+  );
+}
+
 /**
  * Handle summarize button click event
  * 处理总结按钮点击事件
@@ -108,7 +161,12 @@ async function summarizeButtonClick(target) {
 
   // Get the request URL and prepare data
   // 获取请求URL并准备数据
-  var url = target.dataset.request;
+  var url = normalizeSameOriginUrl(
+    target.dataset.request,
+    'Missing request URL',
+    'Invalid request URL',
+    'Blocked cross-origin summarize URL'
+  );
   var data = {
     ajax: true,
     _csrf: context.csrf
@@ -124,11 +182,10 @@ async function summarizeButtonClick(target) {
     });
 
     const xresp = response.data;
-    console.log(xresp);
 
     // Check if response is valid
     // 检查响应是否有效
-    if (response.status !== 200 || !xresp.response || !xresp.response.data) {
+    if (response.status !== 200 || !xresp.response || !xresp.response.proxy_url) {
       const requestFailedText = container.querySelector('.oai-summary-btn').dataset.requestFailedText;
       throw new Error(requestFailedText);
     }
@@ -136,61 +193,51 @@ async function summarizeButtonClick(target) {
     // Handle error response
     // 处理错误响应
     if (xresp.response.error) {
-      setOaiState(container, 2, xresp.response.data, null);
+      setOaiState(container, 2, xresp.response.error, null);
     } else {
-      // Parse parameters returned by PHP
-      // 解析PHP返回的参数
-      const oaiParams = xresp.response.data;
+      const proxyUrl = normalizeProxyUrl(xresp.response.proxy_url);
       const oaiProvider = xresp.response.provider;
       
       // Send request to appropriate AI provider
       // 向合适的AI提供商发送请求
       if (oaiProvider === 'openai') {
-        await sendOpenAIRequest(container, oaiParams);
+        await sendOpenAIRequest(container, proxyUrl);
       } else {
-        await sendOllamaRequest(container, oaiParams);
+        await sendOllamaRequest(container, proxyUrl);
       }
     }
   } catch (error) {
     console.error(error);
-    // Show more specific error message
-    // 显示更具体的错误信息
-    const errorMsg = error.response?.data?.error?.message || 
-                    error.message || 
-                    'Request Failed';
+    const errorMsg = extractErrorMessage(error);
     setOaiState(container, 2, errorMsg, null);
   }
 }
 
-/**
- * Send summarization request to OpenAI API
- * 向OpenAI API发送总结请求
- * 
- * @param {HTMLElement} container - The summary container element
- * @param {Object} oaiParams - OpenAI API parameters
- */
-async function sendOpenAIRequest(container, oaiParams) {
+async function sendOpenAIRequest(container, proxyUrl) {
   try {
-    // Prepare request body by removing URL and key
-    // 准备请求体，移除URL和密钥
-    let body = JSON.parse(JSON.stringify(oaiParams));
-    delete body['oai_url'];
-    delete body['oai_key'];
-    body["stream"] = true; // Ensure stream is true for OpenAI API
-    
-    // Send POST request to OpenAI API
-    // 向OpenAI API发送POST请求
-    const response = await fetch(oaiParams.oai_url, {
+    const response = await fetch(proxyUrl, {
       method: 'POST',
+      mode: 'same-origin',
+      credentials: 'same-origin',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${oaiParams.oai_key}`
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: JSON.stringify(body)
+      body: `_csrf=${encodeURIComponent(context.csrf)}&ajax=1`
     });
 
+    const responseContentType = response.headers.get('content-type') || '';
+    if (responseContentType.includes('application/json')) {
+      const errorPayload = await response.json();
+      const baseMsg = errorPayload?.message || errorPayload?.error || `Request Failed (${response.status})`;
+      const errorMsg = errorPayload?.request_id ? `${baseMsg} [${errorPayload.request_id}]` : baseMsg;
+      throw new Error(errorMsg);
+    }
+
     if (!response.ok) {
-      throw new Error('Request Failed');
+      const rawBody = await response.text();
+      const snippet = rawBody.trim().slice(0, 160);
+      const message = buildFetchError(response, 'Request Failed');
+      throw new Error(snippet ? `${message}: ${snippet}` : message);
     }
 
     // Process streaming response with buffer
@@ -215,8 +262,8 @@ async function sendOpenAIRequest(container, oaiParams) {
       
       // Process each line in buffer
       // 处理缓冲区中的每一行
-      let endIndex;
-      while ((endIndex = buffer.indexOf('\n')) !== -1) {
+      let endIndex = buffer.indexOf('\n');
+      while (endIndex !== -1) {
         const line = buffer.slice(0, endIndex).trim();
         buffer = buffer.slice(endIndex + 1);
         
@@ -236,7 +283,7 @@ async function sendOpenAIRequest(container, oaiParams) {
           const jsonString = line.slice(6).trim();
           try {
             const json = JSON.parse(jsonString);
-            if (json.choices && json.choices[0].delta) {
+            if (json.choices?.[0]?.delta) {
               const delta = json.choices[0].delta;
               if (delta.content) {
                 text += delta.content;
@@ -251,49 +298,43 @@ async function sendOpenAIRequest(container, oaiParams) {
             console.error('Error parsing OpenAI response:', e, 'Line:', jsonString);
           }
         }
+
+        endIndex = buffer.indexOf('\n');
       }
     }
   } catch (error) {
     console.error(error);
-    // Show more specific error message
-    // 显示更具体的错误信息
-    const errorMsg = error.response?.data?.error?.message || 
-                    error.message || 
-                    'Request Failed';
+    const errorMsg = extractErrorMessage(error);
     setOaiState(container, 2, errorMsg, null);
   }
 }
 
 
-/**
- * Send summarization request to Ollama API
- * 向Ollama API发送总结请求
- * 
- * @param {HTMLElement} container - The summary container element
- * @param {Object} oaiParams - Ollama API parameters
- */
-async function sendOllamaRequest(container, oaiParams){
+async function sendOllamaRequest(container, proxyUrl){
   try {
-    // Send POST request to Ollama API
-    // 向Ollama API发送POST请求
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-    
-    // Only add Authorization header if API key exists
-    // 只有当API key存在时才添加Authorization头
-    if (oaiParams.oai_key && oaiParams.oai_key.trim() !== '') {
-      headers['Authorization'] = `Bearer ${oaiParams.oai_key}`;
-    }
-    
-    const response = await fetch(oaiParams.oai_url, {
+    const response = await fetch(proxyUrl, {
       method: 'POST',
-      headers: headers,
-      body: JSON.stringify(oaiParams)
+      mode: 'same-origin',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `_csrf=${encodeURIComponent(context.csrf)}&ajax=1`
     });
 
+    const responseContentType = response.headers.get('content-type') || '';
+    if (responseContentType.includes('application/json')) {
+      const errorPayload = await response.json();
+      const baseMsg = errorPayload?.message || errorPayload?.error || `Request Failed (${response.status})`;
+      const errorMsg = errorPayload?.request_id ? `${baseMsg} [${errorPayload.request_id}]` : baseMsg;
+      throw new Error(errorMsg);
+    }
+
     if (!response.ok) {
-      throw new Error('Request Failed');
+      const rawBody = await response.text();
+      const snippet = rawBody.trim().slice(0, 160);
+      const message = buildFetchError(response, 'Request Failed');
+      throw new Error(snippet ? `${message}: ${snippet}` : message);
     }
 
     // Process streaming response with buffer
@@ -318,8 +359,8 @@ async function sendOllamaRequest(container, oaiParams){
       
       // Process complete JSON objects from the buffer
       // 从缓冲区处理完整的JSON对象
-      let endIndex;
-      while ((endIndex = buffer.indexOf('\n')) !== -1) {
+      let endIndex = buffer.indexOf('\n');
+      while (endIndex !== -1) {
         const jsonString = buffer.slice(0, endIndex).trim();
         try {
           if (jsonString) {
@@ -339,15 +380,12 @@ async function sendOllamaRequest(container, oaiParams){
         // Remove the processed part from the buffer
         // 从缓冲区移除已处理的部分
         buffer = buffer.slice(endIndex + 1); // +1 to remove the newline character
+        endIndex = buffer.indexOf('\n');
       }
     }
   } catch (error) {
     console.error(error);
-    // Show more specific error message
-    // 显示更具体的错误信息
-    const errorMsg = error.response?.data?.error?.message || 
-                    error.message || 
-                    'Request Failed';
+    const errorMsg = extractErrorMessage(error);
     setOaiState(container, 2, errorMsg, null);
   }
 }

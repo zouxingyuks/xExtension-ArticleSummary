@@ -84,4 +84,9 @@ class ArticleSummaryControllerTest extends TestCase
     {
         $this->assertTrue(method_exists('FreshExtension_ArticleSummary_Controller', 'processNode'));
     }
+
+    public function testProxyActionMethodExists(): void
+    {
+        $this->assertTrue(method_exists('FreshExtension_ArticleSummary_Controller', 'proxyAction'));
+    }
 }

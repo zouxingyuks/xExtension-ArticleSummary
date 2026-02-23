@@ -6,14 +6,6 @@
 final class ArticleSummaryExtension extends Minz_Extension
 {
   /**
-   * Content Security Policy settings
-   * 内容安全策略设置
-   */
-  protected array $csp_policies = [
-    'default-src' => '*',
-  ];
-
-  /**
    * Initialize the extension
    * 初始化插件
    */
@@ -45,7 +37,7 @@ final class ArticleSummaryExtension extends Minz_Extension
     Minz_View::appendStyle($this->getFileUrl('style.css', 'css'));
     Minz_View::appendScript($this->getFileUrl('axios.js', 'js'));
     Minz_View::appendScript($this->getFileUrl('marked.js', 'js'));
-    Minz_View::appendScript($this->getFileUrl('script.js', 'js'));
+    Minz_View::appendScript($this->getFileUrl('script.js', 'js') . '&v=0.5.3');
   }
 
   /**
@@ -63,15 +55,16 @@ final class ArticleSummaryExtension extends Minz_Extension
       return $entry; // Return original entry without modifying it for RSS
     }
     
-    // Generate URL for summarization request
-    // 生成总结请求的URL
+    // Generate URL for summarization request using absolute root path
+    // so the browser POSTs to /i/?c=... which nginx allows for POST
+    // 使用绝对根路径生成总结请求URL，确保浏览器POST到 /i/?c=...
     $url_summary = Minz_Url::display(array(
       'c' => 'ArticleSummary',
       'a' => 'summarize',
       'params' => array(
         'id' => $entry->id()
       )
-    ));
+    ), 'html', 'root');
 
     // Get translated texts
     // 获取翻译文本
