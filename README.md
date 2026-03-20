@@ -27,17 +27,18 @@ This extension for FreshRSS allows users to generate summaries of articles using
 
 To configure the extension, follow these steps:
 
-1. **Base URL**: Enter the base URL of your language model API (e.g., `https://api.openai.com/`). Note that the URL should not include the version path (e.g., `/v1`).
+1. **Base URL**: Enter the base URL of your language model API (e.g., `https://api.openai.com` or `https://api.openai.com/v1`). OpenAI-compatible providers can include `/v1` or omit it.
 2. **API Key**: Provide your API key for authentication.
 3. **Model Name**: Specify the model name you wish to use for summarization (e.g., `gpt-3.5-turbo`).
 4. **Prompt**: Add a prompt that will be included before the article content when sending the request to the API.
 
 ## Usage
 
-Once configured, the extension will automatically add a "summarize" button to each article. Clicking this button will:
+Once configured, the extension will automatically add a **Summarize article** button to each expanded article. Clicking this button will:
 
 1. Send the article content to the configured API.
-2. Display the generated summary below the button.
+2. Stream the summary below the button as it is generated.
+3. Keep any partial output visible if the upstream request stops early, and show a follow-up note with the error.
 
 ## Dependencies
 

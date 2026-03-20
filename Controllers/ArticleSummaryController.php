@@ -232,44 +232,18 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
         $base_url .= '/v1';
       }
 
-      if ($oai_provider === 'ollama') {
-        $api_url = $base_url . '/api/generate';
-        $payload = array(
-          'model' => $oai_model,
-          'system' => $oai_prompt,
-          'prompt' => $prompt_content,
-          'stream' => true,
-        );
-        $headers = array('Content-Type: application/json');
-        if (!$this->isEmpty($oai_key)) {
-          $headers[] = 'Authorization: Bearer ' . $oai_key;
-        }
-        $success_content_type = 'application/x-ndjson; charset=UTF-8';
-      } else {
-        $api_url = $base_url . '/chat/completions';
-        $payload = array(
-          'model' => $oai_model,
-          'messages' => array(
-            array(
-              'role' => 'system',
-              'content' => $oai_prompt,
-            ),
-            array(
-              'role' => 'user',
-              'content' => $prompt_content,
-            ),
-          ),
-          'max_tokens' => 2048,
-          'temperature' => 0.7,
-          'n' => 1,
-          'stream' => true,
-        );
-        $headers = array(
-          'Content-Type: application/json',
-          'Authorization: Bearer ' . $oai_key,
-        );
-        $success_content_type = 'text/event-stream; charset=UTF-8';
-      }
+      $request_config = $this->buildProviderRequestConfig(
+        $oai_provider,
+        $base_url,
+        (string) $oai_key,
+        (string) $oai_model,
+        (string) $oai_prompt,
+        $prompt_content
+      );
+      $api_url = $request_config['api_url'];
+      $payload = $request_config['payload'];
+      $headers = $request_config['headers'];
+      $success_content_type = $request_config['success_content_type'];
 
       if (!function_exists('curl_init')) {
         header('HTTP/1.1 500 Internal Server Error');
@@ -318,7 +292,8 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_RETURNTRANSFER => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT => 120,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 90,
         CURLOPT_HEADERFUNCTION => static function ($handle, string $header_line) use (&$header_http_code): int {
           if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', trim($header_line), $matches) === 1) {
             $header_http_code = (int) $matches[1];
@@ -357,40 +332,46 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
       if ($result === false || $curl_errno !== 0) {
         error_log('[ArticleSummary][proxyAction][upstream_error][' . $request_id . '] errno=' . $curl_errno . ' message=' . $curl_error . ' url=' . $api_url);
 
+        $is_timeout = $curl_errno === CURLE_OPERATION_TIMEDOUT;
+        $stream_error = array(
+          'error' => $is_timeout ? 'upstream_timeout' : 'upstream_request_failed',
+          'message' => $this->buildUserFriendlyUpstreamMessage($is_timeout ? 'upstream_timeout' : 'upstream_request_failed', $curl_error),
+          'request_id' => $request_id,
+        );
+
         if ($stream_started) {
-          echo "\n";
+          $this->emitStreamErrorPayload($success_content_type, $stream_error);
           flush();
           exit;
         }
 
-        $is_timeout = $curl_errno === 28 || (defined('CURLE_OPERATION_TIMEDOUT') && $curl_errno === CURLE_OPERATION_TIMEDOUT);
         header($is_timeout ? 'HTTP/1.1 504 Gateway Timeout' : 'HTTP/1.1 502 Bad Gateway');
         header('Content-Type: application/json');
-        echo json_encode(array(
-          'error' => $is_timeout ? 'upstream_timeout' : 'upstream_request_failed',
-          'message' => $curl_error,
-          'request_id' => $request_id,
-        ));
+        echo json_encode($stream_error);
         exit;
       }
 
       if ($http_code >= 400) {
         error_log('[ArticleSummary][proxyAction][upstream_http][' . $request_id . '] status=' . $http_code . ' url=' . $api_url);
 
+        $upstream_message = $this->extractUpstreamErrorMessage($upstream_error_body);
+        $stream_error = array(
+          'error' => 'upstream_http_error',
+          'status' => $http_code,
+          'body' => substr(trim($upstream_error_body), 0, 1024),
+          'message' => $this->buildUserFriendlyUpstreamMessage('upstream_http_error', $upstream_message, $http_code),
+          'request_id' => $request_id,
+        );
+
         if ($stream_started) {
-          echo "\n";
+          $this->emitStreamErrorPayload($success_content_type, $stream_error);
           flush();
           exit;
         }
 
         header('HTTP/1.1 502 Bad Gateway');
         header('Content-Type: application/json');
-        echo json_encode(array(
-          'error' => 'upstream_http_error',
-          'status' => $http_code,
-          'body' => substr(trim($upstream_error_body), 0, 1024),
-          'request_id' => $request_id,
-        ));
+        echo json_encode($stream_error);
         exit;
       }
 
@@ -403,10 +384,15 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
         header('Content-Type: application/json');
         echo json_encode(array(
           'error' => 'internal_server_error',
+          'message' => 'The summary request failed unexpectedly. Please try again.',
           'request_id' => $request_id,
         ));
       } else {
-        echo "\n";
+        $this->emitStreamErrorPayload($success_content_type ?? 'text/event-stream; charset=UTF-8', array(
+          'error' => 'internal_server_error',
+          'message' => 'The summary request failed unexpectedly. Please try again.',
+          'request_id' => $request_id,
+        ));
         flush();
       }
 
@@ -422,7 +408,134 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
    * @return bool True if the value is null, false otherwise
    */
   private function isEmpty(mixed $item): bool {
-    return $item === null;
+    return $item === null || $item === '';
+  }
+
+  private function buildProviderRequestConfig(string $provider, string $base_url, string $api_key, string $model, string $prompt, string $prompt_content): array {
+    if ($provider === 'ollama') {
+      $headers = array('Content-Type: application/json');
+      if (!$this->isEmpty($api_key)) {
+        $headers[] = 'Authorization: Bearer ' . $api_key;
+      }
+
+      return array(
+        'api_url' => $base_url . '/api/generate',
+        'payload' => array(
+          'model' => $model,
+          'system' => $prompt,
+          'prompt' => $prompt_content,
+          'stream' => true,
+        ),
+        'headers' => $headers,
+        'success_content_type' => 'application/x-ndjson; charset=UTF-8',
+      );
+    }
+
+    if ($this->shouldUseResponsesApi($model)) {
+      return array(
+        'api_url' => $base_url . '/responses',
+        'payload' => array(
+          'model' => $model,
+          'input' => array(
+            array(
+              'role' => 'system',
+              'content' => $prompt,
+            ),
+            array(
+              'role' => 'user',
+              'content' => $prompt_content,
+            ),
+          ),
+          'stream' => true,
+        ),
+        'headers' => array(
+          'Content-Type: application/json',
+          'Authorization: Bearer ' . $api_key,
+        ),
+        'success_content_type' => 'text/event-stream; charset=UTF-8',
+      );
+    }
+
+    return array(
+      'api_url' => $base_url . '/chat/completions',
+      'payload' => array(
+        'model' => $model,
+        'messages' => array(
+          array(
+            'role' => 'system',
+            'content' => $prompt,
+          ),
+          array(
+            'role' => 'user',
+            'content' => $prompt_content,
+          ),
+        ),
+        'max_tokens' => 2048,
+        'temperature' => 0.7,
+        'n' => 1,
+        'stream' => true,
+      ),
+      'headers' => array(
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $api_key,
+      ),
+      'success_content_type' => 'text/event-stream; charset=UTF-8',
+    );
+  }
+
+  private function shouldUseResponsesApi(string $model): bool {
+    $normalized_model = strtolower(trim($model));
+    return str_starts_with($normalized_model, 'gpt-5') || strpos($normalized_model, 'codex') !== false;
+  }
+
+  private function emitStreamErrorPayload(string $success_content_type, array $payload): void {
+    $encoded_payload = json_encode($payload);
+    if ($encoded_payload === false) {
+      echo "\n";
+      return;
+    }
+
+    if (strpos($success_content_type, 'text/event-stream') !== false) {
+      echo "event: error\n";
+      echo 'data: ' . $encoded_payload . "\n\n";
+      return;
+    }
+
+    echo $encoded_payload . "\n";
+  }
+
+  private function extractUpstreamErrorMessage(string $body): string {
+    $trimmed_body = trim($body);
+    if ($trimmed_body === '') {
+      return '';
+    }
+
+    $decoded = json_decode($trimmed_body, true);
+    if (is_array($decoded)) {
+      $message = $decoded['error']['message'] ?? $decoded['message'] ?? $decoded['error'] ?? null;
+      if (is_string($message) && trim($message) !== '') {
+        return trim($message);
+      }
+    }
+
+    return substr($trimmed_body, 0, 300);
+  }
+
+  private function buildUserFriendlyUpstreamMessage(string $error_code, string $raw_message = '', int $status_code = 0): string {
+    $normalized_message = trim($raw_message);
+    if ($error_code === 'upstream_timeout') {
+      return 'The summary request timed out. Please try again in a moment.';
+    }
+
+    if ($normalized_message !== '') {
+      return $status_code > 0 ? $normalized_message . ' (HTTP ' . $status_code . ')' : $normalized_message;
+    }
+
+    if ($error_code === 'upstream_http_error' && $status_code > 0) {
+      return 'The AI service returned an unexpected response (HTTP ' . $status_code . ').';
+    }
+
+    return 'The AI service could not complete the request. Please verify your model and API settings.';
   }
 
   /**
@@ -490,39 +603,39 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
           break;
         case 'h1':
           $markdown .= "# ";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "\n\n";
           break;
         case 'h2':
           $markdown .= "## ";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "\n\n";
           break;
         case 'h3':
           $markdown .= "### ";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "\n\n";
           break;
         case 'h4':
           $markdown .= "#### ";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "\n\n";
           break;
         case 'h5':
           $markdown .= "##### ";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "\n\n";
           break;
         case 'h6':
           $markdown .= "###### ";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "\n\n";
           break;
         case 'a':
           // Convert links to code-style text instead of markdown links
           // 将链接转换为代码风格的文本而不是markdown链接
           $markdown .= "`";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "`";
           break;
         case 'img':
@@ -532,13 +645,13 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
         case 'strong':
         case 'b':
           $markdown .= "**";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "**";
           break;
         case 'em':
         case 'i':
           $markdown .= "*";
-          $markdown .= $this->processNode($node->firstChild, $xpath);
+          $markdown .= $this->renderChildNodes($node, $xpath, $indentLevel);
           $markdown .= "*";
           break;
         case 'ul':
@@ -576,6 +689,15 @@ final class FreshExtension_ArticleSummary_Controller extends Minz_ActionControll
           }
           break;
       }
+    }
+
+    return $markdown;
+  }
+
+  private function renderChildNodes(DOMNode $node, DOMXPath $xpath, int $indentLevel = 0): string {
+    $markdown = '';
+    foreach ($node->childNodes as $child) {
+      $markdown .= $this->processNode($child, $xpath, $indentLevel);
     }
 
     return $markdown;

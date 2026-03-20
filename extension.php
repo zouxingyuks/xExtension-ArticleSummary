@@ -34,10 +34,10 @@ final class ArticleSummaryExtension extends Minz_Extension
     
     // Append static resources
     // 附加静态资源
-    Minz_View::appendStyle($this->getFileUrl('style.css', 'css'));
+    Minz_View::appendStyle($this->getFileUrl('style.css', 'css') . '&v=0.5.4');
     Minz_View::appendScript($this->getFileUrl('axios.js', 'js'));
     Minz_View::appendScript($this->getFileUrl('marked.js', 'js'));
-    Minz_View::appendScript($this->getFileUrl('script.js', 'js') . '&v=0.5.3');
+    Minz_View::appendScript($this->getFileUrl('script.js', 'js') . '&v=0.5.4');
   }
 
   /**
@@ -69,20 +69,39 @@ final class ArticleSummaryExtension extends Minz_Extension
     // Get translated texts
     // 获取翻译文本
     $summarizeText = _t('ArticleSummary.button.summarize');
+    $summarizeTitleText = _t('ArticleSummary.button.summarize_title');
     $loadingText = _t('ArticleSummary.status.loading');
     $errorText = _t('ArticleSummary.status.error');
     $requestFailedText = _t('ArticleSummary.status.request_failed');
+    $timeoutText = _t('ArticleSummary.status.timeout');
+    $cancelledText = _t('ArticleSummary.status.cancelled');
+    $partialErrorText = _t('ArticleSummary.status.partial_error');
+    $configurationText = _t('ArticleSummary.status.configuration');
+    $invalidRequestText = _t('ArticleSummary.status.invalid_request');
+    $invalidProxyText = _t('ArticleSummary.status.invalid_proxy');
+    $emptySummaryText = _t('ArticleSummary.status.empty_summary');
+    $helpText = _t('ArticleSummary.status.help');
 
     // Add summary button and container to article content with translated texts as data attributes
     // 向文章内容添加总结按钮和容器，并将翻译文本作为data属性
     $entry->_content(
       '<div class="oai-summary-wrap">'
-      . '<button data-request="' . $url_summary . '" '
+      . '<button type="button" data-request="' . $url_summary . '" '
       . 'data-summarize-text="' . $summarizeText . '" '
+      . 'data-summarize-title-text="' . $summarizeTitleText . '" '
       . 'data-loading-text="' . $loadingText . '" '
       . 'data-error-text="' . $errorText . '" '
       . 'data-request-failed-text="' . $requestFailedText . '" '
-      . 'class="oai-summary-btn"></button>'
+      . 'data-timeout-text="' . $timeoutText . '" '
+      . 'data-cancelled-text="' . $cancelledText . '" '
+      . 'data-partial-error-text="' . $partialErrorText . '" '
+      . 'data-configuration-text="' . $configurationText . '" '
+      . 'data-invalid-request-text="' . $invalidRequestText . '" '
+      . 'data-invalid-proxy-text="' . $invalidProxyText . '" '
+      . 'data-empty-summary-text="' . $emptySummaryText . '" '
+      . 'data-help-text="' . $helpText . '" '
+      . 'class="oai-summary-btn" aria-label="' . $summarizeTitleText . '" title="' . $summarizeTitleText . '">' . $summarizeText . '</button>'
+      . '<p class="oai-summary-help">' . $helpText . '</p>'
       . '<div class="oai-summary-content"></div>'
       . '</div>'
       . $entry->content()
@@ -99,15 +118,19 @@ final class ArticleSummaryExtension extends Minz_Extension
     if (Minz_Request::isPost()) {
       // Get form inputs
       // 获取表单输入
-      $oai_url = Minz_Request::param('oai_url', '');
-      $oai_key = Minz_Request::param('oai_key', '');
-      $oai_model = Minz_Request::param('oai_model', '');
-      $oai_prompt = Minz_Request::param('oai_prompt', '');
-      $oai_provider = Minz_Request::param('oai_provider', '');
+      $oai_url = trim((string) Minz_Request::param('oai_url', ''));
+      $oai_key = trim((string) Minz_Request::param('oai_key', ''));
+      $oai_model = trim((string) Minz_Request::param('oai_model', ''));
+      $oai_prompt = trim((string) Minz_Request::param('oai_prompt', ''));
+      $oai_provider = trim((string) Minz_Request::param('oai_provider', 'openai'));
+
+      if ($oai_provider !== 'openai' && $oai_provider !== 'ollama') {
+        $oai_provider = 'openai';
+      }
       
       // If prompt is empty string, set to null so default can be applied
       // 如果提示词为空字符串，则设置为null以便应用默认值
-      if (trim($oai_prompt) === '') {
+      if ($oai_prompt === '') {
         $oai_prompt = null;
       }
       

@@ -20,6 +20,11 @@ require_once __DIR__ . '/../extension.php';
  */
 class ArticleSummaryExtensionTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        _resetAllMocks();
+    }
+
     /**
      * Test that the extension class exists
      * 测试扩展类是否存在
@@ -74,5 +79,99 @@ class ArticleSummaryExtensionTest extends TestCase
     public function testHandleConfigureActionMethodExists(): void
     {
         $this->assertTrue(method_exists('ArticleSummaryExtension', 'handleConfigureAction'));
+    }
+
+    public function testAddSummaryButtonIncludesReadableButtonTextAndHelp(): void
+    {
+        \FreshRSS_Context::$user_conf = (object) ['oai_prompt' => null];
+
+        $entry = new \FreshRSS_Entry(123, '<p>Hello world</p>');
+        $extension = new \ArticleSummaryExtension();
+
+        $result = $extension->addSummaryButton($entry);
+        $content = $result->content();
+
+        $this->assertStringContainsString('data-summarize-text="ArticleSummary.button.summarize"', $content);
+        $this->assertStringContainsString('data-summarize-title-text="ArticleSummary.button.summarize_title"', $content);
+        $this->assertStringContainsString('class="oai-summary-btn"', $content);
+        $this->assertStringContainsString('>ArticleSummary.button.summarize</button>', $content);
+        $this->assertStringContainsString('<p class="oai-summary-help">ArticleSummary.status.help</p>', $content);
+    }
+
+    public function testHandleConfigureActionTrimsValuesAndNormalizesProvider(): void
+    {
+        \Minz_Request::$_isPost = true;
+        \Minz_Request::$_params = [
+            'oai_url' => '  http://axonhub.r640.local/v1  ',
+            'oai_key' => '  secret-key  ',
+            'oai_model' => '  gpt-5.3-codex-spark  ',
+            'oai_prompt' => '  Summarize clearly  ',
+            'oai_provider' => ' invalid-provider ',
+        ];
+
+        $saved = false;
+        \FreshRSS_Context::$user_conf = new class($saved) {
+            public string $oai_url = '';
+            public string $oai_key = '';
+            public string $oai_model = '';
+            public $oai_prompt = '';
+            public string $oai_provider = '';
+            private bool $saved = false;
+
+            public function __construct(bool $saved)
+            {
+                $this->saved = $saved;
+            }
+
+            public function save(): void
+            {
+                $this->saved = true;
+            }
+
+            public function wasSaved(): bool
+            {
+                return $this->saved;
+            }
+        };
+
+        $extension = new \ArticleSummaryExtension();
+        $extension->handleConfigureAction();
+
+        $this->assertTrue(\FreshRSS_Context::$user_conf->wasSaved());
+        $this->assertSame('http://axonhub.r640.local/v1', \FreshRSS_Context::$user_conf->oai_url);
+        $this->assertSame('secret-key', \FreshRSS_Context::$user_conf->oai_key);
+        $this->assertSame('gpt-5.3-codex-spark', \FreshRSS_Context::$user_conf->oai_model);
+        $this->assertSame('Summarize clearly', \FreshRSS_Context::$user_conf->oai_prompt);
+        $this->assertSame('openai', \FreshRSS_Context::$user_conf->oai_provider);
+    }
+
+    public function testHandleConfigureActionConvertsEmptyPromptToNull(): void
+    {
+        \Minz_Request::$_isPost = true;
+        \Minz_Request::$_params = [
+            'oai_url' => 'http://axonhub.r640.local',
+            'oai_key' => 'secret-key',
+            'oai_model' => 'claude-sonnet-4-6',
+            'oai_prompt' => '   ',
+            'oai_provider' => 'ollama',
+        ];
+
+        \FreshRSS_Context::$user_conf = new class {
+            public string $oai_url = '';
+            public string $oai_key = '';
+            public string $oai_model = '';
+            public $oai_prompt = 'preset';
+            public string $oai_provider = '';
+
+            public function save(): void
+            {
+            }
+        };
+
+        $extension = new \ArticleSummaryExtension();
+        $extension->handleConfigureAction();
+
+        $this->assertNull(\FreshRSS_Context::$user_conf->oai_prompt);
+        $this->assertSame('ollama', \FreshRSS_Context::$user_conf->oai_provider);
     }
 }

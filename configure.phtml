@@ -4,25 +4,39 @@ $oai_key = FreshRSS_Context::$user_conf->oai_key;
 $oai_model = FreshRSS_Context::$user_conf->oai_model;
 $oai_prompt = FreshRSS_Context::$user_conf->oai_prompt;
 $oai_provider = FreshRSS_Context::$user_conf->oai_provider ?: 'openai'; // Default to OpenAI
+$is_saved = Minz_Request::isPost();
 ?>
 <form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
   <input type="hidden" name="_csrf" value="<?php echo FreshRSS_Auth::csrfToken(); ?>" />
+  <div class="oai-settings-card">
+    <h2 class="oai-settings-title"><?php echo _t('ArticleSummary.config.section_title'); ?></h2>
+    <p class="oai-settings-intro"><?php echo _t('ArticleSummary.config.intro'); ?></p>
+    <?php if ($is_saved) { ?>
+      <p class="oai-settings-notice"><?php echo _t('ArticleSummary.config.saved'); ?></p>
+    <?php } ?>
+
   <label for="oai_provider"><?php echo _t('ArticleSummary.config.ai_provider'); ?></label>
-  <select name="oai_provider">
+  <select name="oai_provider" id="oai_provider">
       <option value="openai" <?php echo ($oai_provider == 'openai' ? 'selected' : ''); ?>><?php echo _t('ArticleSummary.config.openai'); ?></option>
       <option value="ollama" <?php echo ($oai_provider == 'ollama' ? 'selected' : ''); ?>><?php echo _t('ArticleSummary.config.ollama'); ?></option>
    </select>
+  <p class="oai-field-help"><?php echo _t('ArticleSummary.config.provider_help'); ?></p>
  
  <div id="common_config">
     <label for="oai_url"><?php echo _t('ArticleSummary.config.base_url'); ?></label>
-    <input type="text" name="oai_url" id="oai_url" value="<?php echo $oai_url; ?>">
+    <input type="text" name="oai_url" id="oai_url" value="<?php echo htmlspecialchars((string) $oai_url, ENT_QUOTES, 'UTF-8'); ?>">
+    <p class="oai-field-help"><?php echo _t('ArticleSummary.config.base_url_help'); ?></p>
     <label for="oai_key"><?php echo _t('ArticleSummary.config.api_key'); ?></label>
-    <input type="text" name="oai_key" id="oai_key" value="<?php echo $oai_key; ?>">
+    <input type="password" name="oai_key" id="oai_key" value="<?php echo htmlspecialchars((string) $oai_key, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off">
+    <p class="oai-field-help"><?php echo _t('ArticleSummary.config.api_key_help'); ?></p>
     <label for="oai_model"><?php echo _t('ArticleSummary.config.model_name'); ?></label>
-    <input type="text" name="oai_model" id="oai_model" value="<?php echo $oai_model; ?>">
+    <input type="text" name="oai_model" id="oai_model" value="<?php echo htmlspecialchars((string) $oai_model, ENT_QUOTES, 'UTF-8'); ?>">
+    <p class="oai-field-help"><?php echo _t('ArticleSummary.config.model_name_help'); ?></p>
     <label for="oai_prompt"><?php echo _t('ArticleSummary.config.prompt'); ?></label>
-    <textarea name="oai_prompt" id="oai_prompt" placeholder="<?php echo _t('ArticleSummary.config.default_prompt'); ?>"><?php echo $oai_prompt; ?></textarea>
+    <textarea name="oai_prompt" id="oai_prompt" placeholder="<?php echo htmlspecialchars(_t('ArticleSummary.config.default_prompt'), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $oai_prompt, ENT_QUOTES, 'UTF-8'); ?></textarea>
+    <p class="oai-field-help"><?php echo _t('ArticleSummary.config.prompt_help'); ?></p>
   </div>
   <hr />
   <button type="submit"><?php echo _t('ArticleSummary.config.save'); ?></button>
+  </div>
 </form>
