@@ -1,0 +1,23 @@
+{
+  "skill_name": "freshrss-test-env",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我需要创建一个 FreshRSS 测试环境来调试我的插件，环境目录放在 /tmp/freshrss-test，端口用 8080",
+      "expected_output": "生成完整的测试环境，包括 docker-compose.yml、所有管理脚本（start.sh, deploy-plugin.sh, restart.sh, logs.sh, reset.sh, status.sh）、README.md，并设置正确的权限",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我搭建 freshrss 开发环境，我要测试 xExtension-ArticleSummary 插件，用默认配置就行",
+      "expected_output": "在当前目录创建 freshrss-test 环境，生成所有必要文件和脚本，提供清晰的使用说明",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "创建一个 rss 阅读器测试环境，端口 9090，管理员密码设置为 test123",
+      "expected_output": "生成自定义端口和密码的测试环境，docker-compose.yml 中正确配置端口和密码参数",
+      "files": []
+    }
+  ]
+}

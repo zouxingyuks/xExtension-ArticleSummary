@@ -1,0 +1,133 @@
+{
+  "skill_name": "freshrss-plugin-debug",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "嘿，我刚写完一个 FreshRSS 的文章摘要插件（在 /home/ubuntu/items/xExtension-ArticleSummary 目录），想测试一下能不能正常工作。测试环境在 /home/ubuntu/items/xExtension-ArticleSummary/freshrss-test，API 用的是 http://axonhub.r640.local/v1，key 是 <REDACTED_API_KEY>，模型用 gpt-4o-mini。能帮我跑一遍完整的测试流程吗？包括启动环境、部署插件、配置、然后找篇文章点摘要按钮看看效果",
+      "expected_output": "完整的测试报告，包含：1) 环境启动成功确认 2) 插件部署到 extensions 目录 3) 浏览器登录并启用插件 4) 配置 API 设置的截图 5) 添加测试 RSS 源 6) 打开文章并点击 Summarize 按钮 7) 捕获 API 请求和响应 8) 生成的摘要内容截图 9) 测试报告 markdown 文件保存到 /tmp/",
+      "files": [],
+      "assertions": [
+        {
+          "name": "environment_started",
+          "description": "FreshRSS Docker 容器成功启动并运行在 localhost:8080"
+        },
+        {
+          "name": "plugin_deployed",
+          "description": "插件文件成功复制到 extensions/xExtension-ArticleSummary 目录"
+        },
+        {
+          "name": "browser_login",
+          "description": "成功登录 FreshRSS 管理界面"
+        },
+        {
+          "name": "plugin_enabled",
+          "description": "插件在扩展管理页面显示为已启用状态"
+        },
+        {
+          "name": "api_configured",
+          "description": "API 配置（base URL、key、model）正确保存，有配置页面截图"
+        },
+        {
+          "name": "rss_feed_added",
+          "description": "成功添加测试 RSS 源并加载文章"
+        },
+        {
+          "name": "summarize_button_found",
+          "description": "在文章详情页找到 Summarize 按钮"
+        },
+        {
+          "name": "api_request_captured",
+          "description": "捕获到发往 http://axonhub.r640.local/v1 的 API 请求"
+        },
+        {
+          "name": "summary_displayed",
+          "description": "摘要内容成功显示在页面上，有截图证明"
+        },
+        {
+          "name": "report_generated",
+          "description": "生成结构化的测试报告 markdown 文件，包含所有步骤的状态"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我的 FreshRSS 环境已经在跑了（localhost:8080），刚改了一下我的自定义主题插件（xExtension-CustomTheme，路径在 ../xExtension-CustomTheme），想重新部署一下然后看看主题是否正确应用。不需要配置啥，就是想看看 CSS 样式有没有生效，特别是文章列表页的卡片样式和深色模式切换",
+      "expected_output": "测试报告包含：1) 使用 deploy-plugin.sh 部署插件 2) 容器重启确认 3) 浏览器打开 FreshRSS 4) 文章列表页面截图（浅色模式）5) 切换到深色模式的截图 6) 检查浏览器控制台是否有 CSS 错误 7) 对比部署前后的样式差异（如果有之前的截图）8) 测试报告保存",
+      "files": [],
+      "assertions": [
+        {
+          "name": "plugin_deployed",
+          "description": "使用 deploy-plugin.sh 成功部署主题插件"
+        },
+        {
+          "name": "container_restarted",
+          "description": "容器重启完成，服务恢复正常"
+        },
+        {
+          "name": "light_mode_screenshot",
+          "description": "捕获浅色模式下的文章列表页面截图"
+        },
+        {
+          "name": "dark_mode_screenshot",
+          "description": "捕获深色模式下的文章列表页面截图"
+        },
+        {
+          "name": "no_css_errors",
+          "description": "浏览器控制台没有 CSS 加载错误或样式冲突"
+        },
+        {
+          "name": "card_style_visible",
+          "description": "文章列表的卡片样式正确显示（可以从截图中看出）"
+        },
+        {
+          "name": "report_generated",
+          "description": "生成包含所有截图的测试报告"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我测试一下 FreshRSS 的 xExtension-ReadingTime 插件（在当前目录的上级目录），这个插件会在每篇文章标题旁边显示预计阅读时间。环境已经启动了，插件也部署了，但是我不确定它有没有正确计算时间。能不能找几篇不同长度的文章（短文、中等、长文）测试一下，看看显示的阅读时间是否合理？另外检查一下如果文章没有内容会不会报错",
+      "expected_output": "测试报告包含：1) 浏览器打开 FreshRSS 并确认插件已启用 2) 找到 3-5 篇不同长度的文章 3) 每篇文章的截图，标注显示的阅读时间 4) 手动验证阅读时间计算是否合理（例如：500 字约 2 分钟）5) 测试边界情况：空文章、纯图片文章 6) 检查浏览器控制台错误 7) 网络请求分析（确认没有不必要的 API 调用）8) 测试报告和所有截图",
+      "files": [],
+      "assertions": [
+        {
+          "name": "plugin_enabled_confirmed",
+          "description": "确认 ReadingTime 插件在扩展列表中显示为已启用"
+        },
+        {
+          "name": "multiple_articles_tested",
+          "description": "测试了至少 3 篇不同长度的文章"
+        },
+        {
+          "name": "reading_time_displayed",
+          "description": "每篇文章都显示了阅读时间标识"
+        },
+        {
+          "name": "calculation_reasonable",
+          "description": "阅读时间计算合理（短文 <2 分钟，中等 2-5 分钟，长文 >5 分钟）"
+        },
+        {
+          "name": "edge_case_tested",
+          "description": "测试了边界情况（空文章或纯图片文章）"
+        },
+        {
+          "name": "no_errors",
+          "description": "浏览器控制台没有 JavaScript 错误"
+        },
+        {
+          "name": "no_unnecessary_requests",
+          "description": "网络请求分析显示没有不必要的 API 调用"
+        },
+        {
+          "name": "screenshots_captured",
+          "description": "每篇测试文章都有截图，清晰显示阅读时间"
+        },
+        {
+          "name": "report_generated",
+          "description": "生成详细的测试报告，包含所有验证结果"
+        }
+      ]
+    }
+  ]
+}
